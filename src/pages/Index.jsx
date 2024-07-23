@@ -1,13 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
+import { GeoSearchControl, OpenStreetMapProvider } from 'leaflet-geosearch';
+import 'leaflet-geosearch/dist/geosearch.css';
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
   const mapRef = useRef(null);
   const drawnItemsRef = useRef(null);
+  const [clickedAddress, setClickedAddress] = useState(null);
 
   useEffect(() => {
     if (!mapRef.current) {
@@ -39,6 +42,34 @@ const Index = () => {
         drawnItemsRef.current.addLayer(layer);
       });
 
+      // Add GeoSearch control
+      const provider = new OpenStreetMapProvider();
+      const searchControl = new GeoSearchControl({
+        provider: provider,
+        style: 'bar',
+        showMarker: true,
+        showPopup: false,
+        autoClose: true,
+        retainZoomLevel: false,
+        animateZoom: true,
+        keepResult: false,
+        searchLabel: 'Search for address'
+      });
+      map.addControl(searchControl);
+
+      // Add click event for reverse geocoding
+      map.on('click', async (e) => {
+        const { lat, lng } = e.latlng;
+        try {
+          const results = await provider.search({ query: `${lat}, ${lng}` });
+          if (results.length > 0) {
+            setClickedAddress(results[0].label);
+          }
+        } catch (error) {
+          console.error('Error in reverse geocoding:', error);
+        }
+      });
+
       mapRef.current = map;
     }
 
@@ -54,6 +85,7 @@ const Index = () => {
     if (drawnItemsRef.current) {
       drawnItemsRef.current.clearLayers();
     }
+    setClickedAddress(null);
   };
 
   return (
@@ -63,6 +95,11 @@ const Index = () => {
         <Button onClick={handleClearDrawings}>Clear Drawings</Button>
       </div>
       <div id="map" className="flex-grow w-full" />
+      {clickedAddress && (
+        <div className="absolute bottom-4 left-4 bg-white p-2 rounded shadow">
+          <p><strong>Clicked Address:</strong> {clickedAddress}</p>
+        </div>
+      )}
     </div>
   );
 };
