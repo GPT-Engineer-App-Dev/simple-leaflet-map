@@ -13,8 +13,8 @@ export const navItems = [
     page: <Index />,
   },
   {
-    title: "Map",
-    to: "/map",
+    title: "About",
+    to: "/about",
     icon: <Map className="h-4 w-4" />,
     page: <MapPage />,
   },
