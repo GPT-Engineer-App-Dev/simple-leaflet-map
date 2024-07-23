@@ -5,23 +5,25 @@ import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
 import { GeoSearchControl, OpenStreetMapProvider } from 'leaflet-geosearch';
 import 'leaflet-geosearch/dist/geosearch.css';
+import MarkerClusterGroup from 'react-leaflet-markercluster';
+import 'react-leaflet-markercluster/dist/styles.min.css';
 import { Button } from "@/components/ui/button";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 
 const Index = () => {
-  const mapRef = useRef(null);
-  const drawnItemsRef = useRef(null);
   const [clickedAddress, setClickedAddress] = useState(null);
+  const [markers, setMarkers] = useState([]);
+  const drawnItemsRef = useRef(null);
 
   useEffect(() => {
-    if (!mapRef.current) {
-      const map = L.map('map').setView([51.505, -0.09], 13);
+    drawnItemsRef.current = new L.FeatureGroup();
+  }, []);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
+  const MapControls = () => {
+    const map = useMap();
 
-      drawnItemsRef.current = new L.FeatureGroup();
-      map.addLayer(drawnItemsRef.current);
+    useEffect(() => {
+      if (!map) return;
 
       const drawControl = new L.Control.Draw({
         edit: {
@@ -40,9 +42,9 @@ const Index = () => {
       map.on(L.Draw.Event.CREATED, (event) => {
         const layer = event.layer;
         drawnItemsRef.current.addLayer(layer);
+        map.addLayer(drawnItemsRef.current);
       });
 
-      // Add GeoSearch control
       const provider = new OpenStreetMapProvider();
       const searchControl = new GeoSearchControl({
         provider: provider,
@@ -57,35 +59,34 @@ const Index = () => {
       });
       map.addControl(searchControl);
 
-      // Add click event for reverse geocoding
       map.on('click', async (e) => {
         const { lat, lng } = e.latlng;
         try {
           const results = await provider.search({ query: `${lat}, ${lng}` });
           if (results.length > 0) {
             setClickedAddress(results[0].label);
+            setMarkers(prevMarkers => [...prevMarkers, { position: [lat, lng], popup: results[0].label }]);
           }
         } catch (error) {
           console.error('Error in reverse geocoding:', error);
         }
       });
 
-      mapRef.current = map;
-    }
+      return () => {
+        map.removeControl(drawControl);
+        map.removeControl(searchControl);
+      };
+    }, [map]);
 
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
-  }, []);
+    return null;
+  };
 
   const handleClearDrawings = () => {
     if (drawnItemsRef.current) {
       drawnItemsRef.current.clearLayers();
     }
     setClickedAddress(null);
+    setMarkers([]);
   };
 
   return (
@@ -94,7 +95,22 @@ const Index = () => {
         <h1 className="text-3xl font-bold">Interactive Map</h1>
         <Button onClick={handleClearDrawings}>Clear Drawings</Button>
       </div>
-      <div id="map" className="flex-grow w-full" />
+      <div className="flex-grow w-full">
+        <MapContainer center={[51.505, -0.09]} zoom={13} style={{ height: '100%', width: '100%' }}>
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
+          <MapControls />
+          <MarkerClusterGroup>
+            {markers.map((marker, index) => (
+              <Marker key={index} position={marker.position}>
+                <Popup>{marker.popup}</Popup>
+              </Marker>
+            ))}
+          </MarkerClusterGroup>
+        </MapContainer>
+      </div>
       {clickedAddress && (
         <div className="absolute bottom-4 left-4 bg-white p-2 rounded shadow">
           <p><strong>Clicked Address:</strong> {clickedAddress}</p>
